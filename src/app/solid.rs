@@ -4,7 +4,7 @@ use crate::painter::Painter;
 
 use super::area::Area;
 
-// A solid plane with a color. This is used for testing Area and Point.
+// A solid plane with a color. This was used for testing Area and Point.
 pub struct Solid {
     area: Area,
     color: Color,
