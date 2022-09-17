@@ -1,8 +1,9 @@
+mod app;
+mod painter;
+
 use std::io;
 
 use app::App;
-
-mod app;
 
 fn main() -> crossterm::Result<()> {
     let stdout = io::stdout();
