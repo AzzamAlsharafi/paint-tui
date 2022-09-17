@@ -1,3 +1,4 @@
+mod constant;
 mod app;
 mod painter;
 

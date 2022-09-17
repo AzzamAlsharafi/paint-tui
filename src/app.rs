@@ -1,24 +1,33 @@
 mod area;
+mod panel;
 
 use std::io;
 
 use crossterm::{
     event::{read, Event, KeyCode, MouseButton, MouseEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode, size}, style::Stylize,
+    terminal::{disable_raw_mode, enable_raw_mode, size},
 };
 
 use crate::painter::Painter;
 
-use self::{area::{Area, Corner, Point}};
+use self::{
+    area::{Area, Corner, Point},
+    panel::RightPanel,
+};
 
 pub struct App {
     painter: Painter,
+    right_panel: RightPanel,
 }
 
 impl App {
     pub fn new(stdout: io::Stdout) -> App {
         App {
             painter: Painter::new(stdout),
+            right_panel: RightPanel::new(Area::new(
+                Point::new(0, 0, Corner::TopLeft),
+                Point::new(5, 0, Corner::BottomLeft),
+            )),
         }
     }
 
@@ -27,7 +36,7 @@ impl App {
 
         self.painter.start()?;
 
-        self.draw()?;
+        self.draw_all(size()?)?;
 
         loop {
             match read()? {
@@ -36,13 +45,13 @@ impl App {
                         return self.exit();
                     }
                 }
-                Event::Resize(_, _) => {
+                Event::Resize(width, height) => {
                     self.painter.clear()?;
-                    self.draw()?;
+                    self.draw_all((width, height))?;
                 }
                 Event::Mouse(event) => {
                     if let MouseEventKind::Down(MouseButton::Left) = event.kind {
-                        // Left mouse click event   
+                        self.handle_left_click(event.column, event.row)?;
                     }
                 }
                 _ => {}
@@ -50,10 +59,20 @@ impl App {
         }
     }
 
-    fn draw(&mut self) -> crossterm::Result<()> {
-        let t_size = size()?;
-        
+    fn draw_all(&mut self, t_size: (u16, u16)) -> crossterm::Result<()> {
+        self.right_panel.draw(&mut self.painter, t_size)?;
+
         self.painter.flush()?;
+
+        Ok(())
+    }
+
+    fn handle_left_click(&mut self, x: u16, y: u16) -> crossterm::Result<()> {
+        let t_size = size()?;
+
+        if self.right_panel.area.check_inside(x, y, t_size.0, t_size.1) {
+            self.right_panel.click(&mut self.painter, x, y, t_size)?;
+        }
 
         Ok(())
     }
