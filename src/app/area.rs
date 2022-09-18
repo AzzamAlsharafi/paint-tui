@@ -1,3 +1,5 @@
+use crate::utils::DiffOrZero;
+
 // Describes a rectangular area in the terminal screen.
 pub struct Area {
     pub start: Point,
@@ -63,22 +65,14 @@ impl Point {
 
         match self.corner {
             Corner::TopLeft => return (self.x, self.y),
-            Corner::_TopRight => return (Point::diff_or_zero(t_width, self.x), self.y),
-            Corner::BottomLeft => return (self.x, Point::diff_or_zero(t_height, self.y)),
+            Corner::_TopRight => return (t_width.diff_or_zero(&self.x), self.y),
+            Corner::BottomLeft => return (self.x, t_height.diff_or_zero(&self.y)),
             Corner::_BottomRight => {
                 return (
-                    Point::diff_or_zero(t_width, self.x),
-                    Point::diff_or_zero(t_height, self.y),
+                    t_width.diff_or_zero(&self.x),
+                    t_height.diff_or_zero(&self.y),
                 )
             }
-        }
-    }
-
-    fn diff_or_zero(a: u16, b: u16) -> u16 {
-        if a > b {
-            return a - b;
-        } else {
-            return 0;
         }
     }
 }
