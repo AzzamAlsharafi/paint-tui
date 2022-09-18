@@ -1,5 +1,4 @@
 use std::{
-    cmp::min,
     fmt::Display,
     io::{self, Write},
     time::Duration,
@@ -77,14 +76,26 @@ impl Painter {
         height: u16,
         content: &Vec<Vec<StyledContent<char>>>,
     ) -> crossterm::Result<()> {
-        // In case the availabel space is smaller than the content.
-        let write_height = min(content.len(), usize::from(height));
-        let write_width = min(content[0].len(), usize::from(width));
+        // When the available space is less than the content size,
+        // the following code will make sure to show the content in middle of the canvas.
+        let (write_height, begin_height) = if content.len() > usize::from(height) {
+            let begin = (content.len() - usize::from(height)) / 2;
+            (usize::from(height), begin)
+        } else {
+            (content.len(), 0)
+        };
 
-        for i in 0..write_height {
-            self.stdout.queue(cursor::MoveTo(x, y + (i as u16)))?;
+        let (write_width, begin_width) = if content[0].len() > usize::from(width) {
+            let begin = (content[0].len() - usize::from(width)) / 2;
+            (usize::from(width), begin)
+        } else {
+            (content[0].len(), 0)
+        };
 
-            for c in 0..write_width {
+        for i in begin_height..(write_height + begin_height) {
+            self.stdout.queue(cursor::MoveTo(x, y + ((i - begin_height) as u16)))?;
+
+            for c in begin_width..(write_width + begin_width) {
                 self.stdout.queue(Print(content[i][c]))?;
             }
         }
@@ -117,7 +128,7 @@ impl Painter {
             self.stdout,
             cursor::MoveTo(x, y),
             Print(symbols::TOP_LEFT),
-            Print(symbols::HORIZONTAL.repeat(usize::from(width - 2))),
+            Print(symbols::HORIZONTAL.to_string().repeat(usize::from(width - 2))),
             Print(symbols::TOP_RIGHT)
         )?;
 
@@ -135,7 +146,7 @@ impl Painter {
             self.stdout,
             cursor::MoveTo(x, y + (height - 1)),
             Print(symbols::BOTTOM_LEFT),
-            Print(symbols::HORIZONTAL.repeat(usize::from(width - 2))),
+            Print(symbols::HORIZONTAL.to_string().repeat(usize::from(width - 2))),
             Print(symbols::BOTTOM_RIGHT)
         )?;
 

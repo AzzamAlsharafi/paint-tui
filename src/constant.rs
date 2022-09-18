@@ -1,11 +1,11 @@
 pub mod symbols {
     // Border
-    pub const TOP_RIGHT: &str = "┐";
-    pub const TOP_LEFT: &str = "┌";
-    pub const BOTTOM_RIGHT: &str = "┘";
-    pub const BOTTOM_LEFT: &str = "└";
-    pub const VERTICAL: &str = "│";
-    pub const HORIZONTAL: &str = "─";
+    pub const TOP_RIGHT: char = '┐';
+    pub const TOP_LEFT: char = '┌';
+    pub const BOTTOM_RIGHT: char = '┘';
+    pub const BOTTOM_LEFT: char = '└';
+    pub const VERTICAL: char = '│';
+    pub const HORIZONTAL: char = '─';
 
     // Icons (Temp)
     pub const SELECT: &str = " S ";
