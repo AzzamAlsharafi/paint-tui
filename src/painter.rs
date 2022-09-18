@@ -1,4 +1,5 @@
 use std::{
+    cmp::min,
     fmt::Display,
     io::{self, Write},
     time::Duration,
@@ -8,7 +9,7 @@ use crossterm::{
     cursor,
     event::{poll, read, DisableMouseCapture, EnableMouseCapture},
     execute, queue,
-    style::{Attribute, Print, SetAttribute},
+    style::{Attribute, Print, SetAttribute, StyledContent},
     terminal::{
         Clear, ClearType, DisableLineWrap, EnableLineWrap, EnterAlternateScreen,
         LeaveAlternateScreen,
@@ -66,6 +67,29 @@ impl Painter {
     // Prints content to a specific position.
     pub fn write<D: Display>(&mut self, x: u16, y: u16, content: D) -> crossterm::Result<()> {
         queue!(self.stdout, cursor::MoveTo(x, y), Print(content))
+    }
+
+    pub fn write_canvas_content(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        content: &Vec<Vec<StyledContent<char>>>,
+    ) -> crossterm::Result<()> {
+        // In case the availabel space is smaller than the content.
+        let write_height = min(content.len(), usize::from(height));
+        let write_width = min(content[0].len(), usize::from(width));
+
+        for i in 0..write_height {
+            self.stdout.queue(cursor::MoveTo(x, y + (i as u16)))?;
+
+            for c in 0..write_width {
+                self.stdout.queue(Print(content[i][c]))?;
+            }
+        }
+
+        Ok(())
     }
 
     // Fill area starting from position (x, y) with (width, height) size with {fill} characters.

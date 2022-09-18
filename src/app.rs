@@ -1,4 +1,5 @@
 mod area;
+mod canvas;
 mod panel;
 
 use std::io;
@@ -12,12 +13,14 @@ use crate::painter::Painter;
 
 use self::{
     area::{Area, Corner, Point},
+    canvas::Canvas,
     panel::RightPanel,
 };
 
 pub struct App {
     painter: Painter,
     right_panel: RightPanel,
+    canvas: Canvas,
 }
 
 impl App {
@@ -26,8 +29,16 @@ impl App {
             painter: Painter::new(stdout),
             right_panel: RightPanel::new(Area::new(
                 Point::new(0, 0, Corner::TopLeft),
-                Point::new(5, 0, Corner::BottomLeft),
+                Point::new(4, 0, Corner::BottomLeft),
             )),
+            canvas: Canvas::new(
+                Area::new(
+                    Point::new(6, 0, Corner::TopLeft),
+                    Point::new(0, 0, Corner::_BottomRight),
+                ),
+                50,
+                20,
+            ),
         }
     }
 
@@ -61,6 +72,7 @@ impl App {
 
     fn draw_all(&mut self, t_size: (u16, u16)) -> crossterm::Result<()> {
         self.right_panel.draw(&mut self.painter, t_size)?;
+        self.canvas.draw(&mut self.painter, t_size)?;
 
         self.painter.flush()?;
 
@@ -70,8 +82,17 @@ impl App {
     fn handle_left_click(&mut self, x: u16, y: u16) -> crossterm::Result<()> {
         let t_size = size()?;
 
-        if self.right_panel.area.check_inside(x, y, t_size.0, t_size.1) {
+        if self.right_panel.area.check_inside(x, y, t_size) {
             self.right_panel.click(&mut self.painter, x, y, t_size)?;
+        } else if self.canvas.area.check_inside(x, y, t_size) {
+            self.canvas.click(
+                &mut self.painter,
+                self.right_panel.get_tool(),
+                &self.right_panel.brush,
+                x,
+                y,
+                t_size,
+            )?;
         }
 
         Ok(())

@@ -10,7 +10,7 @@ pub struct RightPanel {
     pub area: Area,
     tools: Vec<Tool>,
     active_tool: usize, // index of current active tool
-    _brush: StyledContent<char>,
+    pub brush: StyledContent<char>,
 }
 
 impl RightPanel {
@@ -29,13 +29,17 @@ impl RightPanel {
                 Tool::Text,
             ],
             active_tool: 0,
-            _brush: 'X'.cyan(),
+            brush: 'X'.cyan(),
         }
     }
 
+    pub fn get_tool(&self) -> &Tool {
+        &self.tools[self.active_tool]
+    }
+
     pub fn draw(&self, painter: &mut Painter, t_size: (u16, u16)) -> crossterm::Result<()> {
-        let (x, y) = self.area.start.absolute_position(t_size.0, t_size.1);
-        let (_, height) = self.area.size(t_size.0, t_size.1);
+        let (x, y) = self.area.start.absolute_position(t_size);
+        let (_, height) = self.area.size(t_size);
 
         for i in 0..self.tools.len() {
             let y = y + (i * 3) as u16;
@@ -69,8 +73,8 @@ impl RightPanel {
         cy: u16,
         t_size: (u16, u16),
     ) -> crossterm::Result<()> {
-        let (_, y) = self.area.start.absolute_position(t_size.0, t_size.1);
-        let (_, height) = self.area.size(t_size.0, t_size.1);
+        let (_, y) = self.area.start.absolute_position(t_size);
+        let (_, height) = self.area.size(t_size);
 
         let visible_buttons = min(height / 3, self.tools.len() as u16);
 
@@ -85,7 +89,7 @@ impl RightPanel {
     }
 }
 
-enum Tool {
+pub enum Tool {
     Select,
     Move,
     Rectangle,

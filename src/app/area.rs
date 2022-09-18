@@ -9,12 +9,12 @@ impl Area {
         Area { start, end }
     }
 
-    pub fn size(&self, t_width: u16, t_height: u16) -> (u16, u16) {
-        let abs_start = self.start.absolute_position(t_width, t_height);
-        let abs_end = self.end.absolute_position(t_width, t_height);
+    pub fn size(&self, t_size: (u16, u16)) -> (u16, u16) {
+        let abs_start = self.start.absolute_position(t_size);
+        let abs_end = self.end.absolute_position(t_size);
 
         // If end point is before start point then this is not a valid area.
-        if abs_start.0 > abs_end.0 || abs_start.1 > abs_start.1 {
+        if abs_start.0 > abs_end.0 || abs_start.1 > abs_end.1 {
             return (0, 0);
         }
 
@@ -25,12 +25,12 @@ impl Area {
     }
 
     // Check if this position (absolute) is inside this area.
-    pub fn check_inside(&self, x: u16, y: u16, t_width: u16, t_height: u16) -> bool{
-        let abs_start = self.start.absolute_position(t_width, t_height);
-        let abs_end = self.end.absolute_position(t_width, t_height);
+    pub fn check_inside(&self, x: u16, y: u16, t_size: (u16, u16)) -> bool {
+        let abs_start = self.start.absolute_position(t_size);
+        let abs_end = self.end.absolute_position(t_size);
 
         // If end point is before start point then this is not a valid area.
-        if abs_start.0 > abs_end.0 || abs_start.1 > abs_start.1 {
+        if abs_start.0 > abs_end.0 || abs_start.1 > abs_end.1 {
             return false;
         }
 
@@ -51,7 +51,9 @@ impl Point {
 
     // Returns absolute position in terminal screen for this point.
     // In terminal screen (0, 0) is the top left corner.
-    pub fn absolute_position(&self, t_width: u16, t_height: u16) -> (u16, u16) {
+    pub fn absolute_position(&self, t_size: (u16, u16)) -> (u16, u16) {
+        let (t_width, t_height) = t_size;
+
         if t_width == 0 || t_height == 0 {
             return (0, 0);
         }
