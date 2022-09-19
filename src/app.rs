@@ -60,11 +60,15 @@ impl App {
                     self.painter.clear()?;
                     self.draw_all((width, height))?;
                 }
-                Event::Mouse(event) => {
-                    if let MouseEventKind::Down(MouseButton::Left) = event.kind {
-                        self.handle_left_click(event.column, event.row)?;
+                Event::Mouse(event) => match event.kind {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        self.handle_left_click(event.column, event.row)?
                     }
-                }
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        self.handle_drag(event.column, event.row)?
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -86,6 +90,23 @@ impl App {
             self.right_panel.click(&mut self.painter, x, y, t_size)?;
         } else if self.canvas.area.check_inside(x, y, t_size) {
             self.canvas.click(
+                &mut self.painter,
+                self.right_panel.get_tool(),
+                &self.right_panel.brush,
+                x,
+                y,
+                t_size,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_drag(&mut self, x: u16, y: u16) -> crossterm::Result<()> {
+        let t_size = size()?;
+
+        if self.canvas.area.check_inside(x, y, t_size) {
+            self.canvas.drag(
                 &mut self.painter,
                 self.right_panel.get_tool(),
                 &self.right_panel.brush,
