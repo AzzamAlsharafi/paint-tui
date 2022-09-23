@@ -1,93 +1,170 @@
-use std::vec;
+use std::{cmp::min, vec};
 
 use crossterm::style::{ContentStyle, StyledContent};
 
-use crate::{constant::symbols, painter::Painter, utils::{DiffOrZero, AddSubOrZero}};
+use crate::{painter::Painter, utils::AddSubOrZero};
 
 use super::{area::Area, panel::Tool};
 
 pub struct Canvas {
     pub area: Area,
     content: Vec<Vec<StyledContent<char>>>,
+    // Fields that depends on current terminal window size.
+    relative: Relative,
 }
 
 impl Canvas {
     // {content_width} and {content_height} are the size of the drawing area,
     // which is different to {area}, the size of the Canvas widget/component.
     pub fn new(area: Area, content_width: usize, content_height: usize) -> Canvas {
-        let default_content = StyledContent::new(ContentStyle::new(), ' ');
+        let content = vec![vec![Self::empty(); content_width]; content_height];
 
-        let content = vec![vec![default_content; content_width]; content_height];
-
-        Canvas { area, content }
+        Canvas {
+            area,
+            content,
+            relative: Relative::zero(),
+        }
     }
 
-    pub fn draw(&self, painter: &mut Painter, t_size: (u16, u16)) -> crossterm::Result<()> {
+    // Empty character. Used for creating new Canvas and with Eraser tool.
+    fn empty() -> StyledContent<char> {
+        StyledContent::new(ContentStyle::default(), ' ')
+    }
+
+    pub fn draw(&mut self, painter: &mut Painter, t_size: (u16, u16)) -> crossterm::Result<()> {
+        self.set_relative(t_size);
+
+        self.draw_border(painter)?;
+
+        self.draw_content(painter)
+    }
+
+    fn set_relative(&mut self, t_size: (u16, u16)) {
         let (x, y) = self.area.start.absolute_position(t_size);
         let (width, height) = self.area.size(t_size);
+        let content_width = self.content[0].len();
+        let content_height = self.content.len();
 
-        // Offset to center the drawing area in case content is smaller than available space.
-        let x_offset = width.diff_or_zero(&((self.content[0].len() + 2) as u16)) / 2;
-        let y_offset = height.diff_or_zero(&((self.content.len() + 2) as u16)) / 2;
+        let transform_x = (((content_width as i32) - (width as i32)) / 2) - (x as i32);
+        let transform_y = (((content_height as i32) - (height as i32)) / 2) - (y as i32);
 
-        painter.write_canvas_content(
-            x + x_offset,
-            y + y_offset,
-            width,
-            height,
-            &self.content_with_border(),
+        let visible_content_width = min(content_width as u16, width);
+        let visible_content_height = min(content_height as u16, height);
+
+        let content_start_x = if (content_width as u16) < width {
+            transform_x.unsigned_abs() as u16
+        } else {
+            x
+        };
+
+        let content_start_y = if (content_height as u16) < height {
+            transform_y.unsigned_abs() as u16
+        } else {
+            y
+        };
+
+        self.relative = Relative::new(
+            (transform_x, transform_y),
+            (visible_content_width, visible_content_height),
+            (content_start_x, content_start_y),
+        );
+    }
+
+    // Transforms absolute position to content position.
+    // Returns None if parameters can't be converted.
+    // (If conversion result is less than 0, or bigger than content size).
+    fn apply_transform(&self, x: u16, y: u16) -> Option<(usize, usize)> {
+        let content_width = self.content[0].len();
+        let content_height = self.content.len();
+        let (transform_x, transform_y) = self.relative.transform;
+
+        let result_x = i32::from(x) + transform_x;
+        let result_y = i32::from(y) + transform_y;
+
+        // If transformed position is negative or bigger than content size, return None.
+        if result_x < 0
+            || result_x >= content_width as i32
+            || result_y < 0
+            || result_y >= content_height as i32
+        {
+            return None;
+        }
+
+        Some((result_x as usize, result_y as usize))
+    }
+
+    fn draw_content(&self, painter: &mut Painter) -> crossterm::Result<()> {
+        let (start_x, start_y) = self.relative.content_start;
+        let (visible_width, visible_height) = self.relative.visible_content_size;
+
+        if let Some((content_x, content_y)) = self.apply_transform(start_x, start_y) {
+            for iy in 0..visible_height {
+                // Write first character in each line.
+                painter.write(
+                    start_x,
+                    start_y + iy,
+                    self.content[content_y + usize::from(iy)][content_x],
+                )?;
+
+                // Start from 1 because first character is already written.
+                for ix in 1..visible_width {
+                    // Write without moving cursor, because cursor is already in place.
+                    painter.write_in_place(
+                        self.content[content_y + usize::from(iy)][content_x + usize::from(ix)],
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_border(&self, painter: &mut Painter) -> crossterm::Result<()> {
+        // TODO: redo this. It doesn't work well with small screen size,
+        // and it breaks the rule that each componenet shouldn't interact with outside its area.
+
+        let (start_x, start_y) = self.relative.content_start;
+        let (visible_width, visible_height) = self.relative.visible_content_size;
+
+        if start_x == 0 || start_y == 0 {
+            return Ok(());
+        }
+
+        painter.draw_box(
+            start_x - 1,
+            start_y - 1,
+            visible_width + 2,
+            visible_height + 2,
         )
     }
 
-    // Returns whether (cx, cy) is inside drawing area, and content_x, content_y.
-    // Used in click() and drag(), hence the name.
-    fn mouse_event_common(&self, cx: u16, cy: u16, t_size: (u16, u16)) -> (bool, usize, usize) {
-        let (x, y) = self.area.start.absolute_position(t_size);
-        let (width, height) = self.area.size(t_size);
-
-        let x_offset = width.abs_diff(self.content[0].len() as u16) / 2;
-        let y_offset = height.abs_diff(self.content.len() as u16) / 2;
-
-        let check_inside = (cx >= x + x_offset && cx < x + x_offset + self.content[0].len() as u16)
-            && (cy >= y + y_offset && cy < y + y_offset + self.content.len() as u16);
-
-        let content_x = if width > self.content[0].len() as u16 {
-            usize::from(cx.abs_diff(x + x_offset))
-        } else {
-            usize::from(cx.abs_diff(x.diff_or_zero(&x_offset)))
-        };
-        
-        let content_y = if height > self.content.len() as u16{
-            usize::from(cy.abs_diff(y + y_offset))
-        } else {
-            usize::from(cy.abs_diff(y.diff_or_zero(&y_offset)))
-        };
-
-        (check_inside, content_x, content_y)
-    }
-
-    // cx: click x, cy: click y
     pub fn click(
         &mut self,
         painter: &mut Painter,
         tool: &Tool,
         brush: &StyledContent<char>,
-        cx: u16,
-        cy: u16,
-        t_size: (u16, u16),
+        click_x: u16,
+        click_y: u16,
     ) -> crossterm::Result<()> {
-        let (check_inside, content_x, content_y) = self.mouse_event_common(cx, cy, t_size);
-
-        if check_inside {
+        if let Some((content_x, content_y)) = self.apply_transform(click_x, click_y) {
             match tool {
                 Tool::Select => {}
                 Tool::Move => {}
                 Tool::Rectangle => {}
                 Tool::Circle => {}
-                Tool::Brush => self.brush(painter, cx, cy, content_x, content_y, brush)?,
-                Tool::Erase => self.brush(painter, cx, cy, content_x, content_y, &Self::ersr())?,
+                Tool::Brush => {
+                    self.brush(painter, click_x, click_y, content_x, content_y, brush)?
+                }
+                Tool::Erase => self.brush(
+                    painter,
+                    click_x,
+                    click_y,
+                    content_x,
+                    content_y,
+                    &Self::empty(),
+                )?,
                 Tool::Bucket => {
-                    self.bucket(painter, cx, cy, t_size, content_x, content_y, brush)?
+                    self.bucket(painter, click_x, click_y, content_x, content_y, brush)?
                 }
                 Tool::ColorPicker => {}
                 Tool::Text => {}
@@ -102,20 +179,26 @@ impl Canvas {
         painter: &mut Painter,
         tool: &Tool,
         brush: &StyledContent<char>,
-        cx: u16,
-        cy: u16,
-        t_size: (u16, u16),
+        click_x: u16,
+        click_y: u16,
     ) -> crossterm::Result<()> {
-        let (check_inside, content_x, content_y) = self.mouse_event_common(cx, cy, t_size);
-
-        if check_inside {
+        if let Some((content_x, content_y)) = self.apply_transform(click_x, click_y) {
             match tool {
                 Tool::Select => {}
                 Tool::Move => {}
                 Tool::Rectangle => {}
                 Tool::Circle => {}
-                Tool::Brush => self.brush(painter, cx, cy, content_x, content_y, brush)?,
-                Tool::Erase => self.brush(painter, cx, cy, content_x, content_y, &Self::ersr())?,
+                Tool::Brush => {
+                    self.brush(painter, click_x, click_y, content_x, content_y, brush)?
+                }
+                Tool::Erase => self.brush(
+                    painter,
+                    click_x,
+                    click_y,
+                    content_x,
+                    content_y,
+                    &Self::empty(),
+                )?,
                 Tool::Bucket => {}
                 Tool::ColorPicker => {}
                 Tool::Text => {}
@@ -128,44 +211,36 @@ impl Canvas {
     fn brush(
         &mut self,
         painter: &mut Painter,
-        cx: u16,
-        cy: u16,
+        click_x: u16,
+        click_y: u16,
         content_x: usize,
         content_y: usize,
         brush: &StyledContent<char>,
     ) -> crossterm::Result<()> {
         self.content[content_y][content_x] = *brush;
 
-        painter.write(cx, cy, brush)?;
+        painter.write(click_x, click_y, brush)?;
         painter.flush()?;
 
         Ok(())
     }
 
-    // Eraser.
-    fn ersr() -> StyledContent<char> {
-        StyledContent::new(ContentStyle::default(), ' ')
-    }
-
     fn bucket(
         &mut self,
         painter: &mut Painter,
-        cx: u16,
-        cy: u16,
-        t_size: (u16, u16),
+        click_x: u16,
+        click_y: u16,
         content_x: usize,
         content_y: usize,
         brush: &StyledContent<char>,
     ) -> crossterm::Result<()> {
         let selected = self.content[content_y][content_x];
 
-        let mut done: Vec<(usize, usize)> = vec![];
-
         self.apply_bucket(
-            painter, cx, cy, t_size, content_x, content_y, brush, &selected, &mut done
+            painter, click_x, click_y, content_x, content_y, brush, &selected,
         )?;
 
-        self.draw(painter, t_size)?;
+        self.draw_content(painter)?;
         painter.flush()?;
 
         Ok(())
@@ -174,27 +249,17 @@ impl Canvas {
     fn apply_bucket(
         &mut self,
         painter: &mut Painter,
-        cx: u16,
-        cy: u16,
-        t_size: (u16, u16),
+        x: u16,
+        y: u16,
         content_x: usize,
         content_y: usize,
         brush: &StyledContent<char>,
         selected: &StyledContent<char>,
-        done: &mut Vec<(usize, usize)>
     ) -> crossterm::Result<()> {
         // Check that we're still inside canvas, if not return.
-        if !(content_x < self.content[0].len() && content_y < self.content.len()) {
+        if content_x >= self.content[0].len() || content_y >= self.content.len() {
             return Ok(());
         }
-
-        // Check if this position has been done before, if yes return.
-        if done.contains(&(content_x, content_y)){
-            return Ok(());
-        }
-
-        // Mark position as done.
-        done.push((content_x, content_y));
 
         let current = self.content[content_y][content_x];
 
@@ -210,54 +275,49 @@ impl Canvas {
         for add in adjacent {
             self.apply_bucket(
                 painter,
-                cx.add_sub_or_zero(&add.0),
-                cy.add_sub_or_zero(&add.1),
-                t_size,
+                x.add_sub_or_zero(&add.0),
+                y.add_sub_or_zero(&add.1),
                 content_x.add_sub_or_zero(&add.0),
                 content_y.add_sub_or_zero(&add.1),
                 brush,
                 selected,
-                done
             )?;
         }
 
         Ok(())
     }
+}
 
-    // Trash code, redo later.
-    pub fn content_with_border(&self) -> Vec<Vec<StyledContent<char>>> {
-        let mut content_with_border = vec![];
+// Fields that depends on terminal window size.
+struct Relative {
+    // Transforms absolute position to its corresponding content position.
+    transform: (i32, i32),
 
-        let style = ContentStyle::new();
+    // Visible content width and height.
+    visible_content_size: (u16, u16),
 
-        let mut top = vec![StyledContent::new(style, symbols::HORIZONTAL); self.content[0].len()];
+    // Absolute position of content starting point.
+    content_start: (u16, u16),
+}
 
-        top.insert(0, StyledContent::new(style, symbols::TOP_LEFT));
-        top.push(StyledContent::new(style, symbols::TOP_RIGHT));
-
-        let mut bottom =
-            vec![StyledContent::new(style, symbols::HORIZONTAL); self.content[0].len()];
-
-        bottom.insert(0, StyledContent::new(style, symbols::BOTTOM_LEFT));
-        bottom.push(StyledContent::new(style, symbols::BOTTOM_RIGHT));
-
-        content_with_border.push(top);
-
-        for line in &self.content {
-            let mut new_line: Vec<StyledContent<char>> =
-                vec![StyledContent::new(style, symbols::VERTICAL)];
-
-            for c in line {
-                new_line.push(*c);
-            }
-
-            new_line.push(StyledContent::new(style, symbols::VERTICAL));
-
-            content_with_border.push(new_line);
+impl Relative {
+    fn zero() -> Relative {
+        Relative {
+            transform: (0, 0),
+            visible_content_size: (0, 0),
+            content_start: (0, 0),
         }
+    }
 
-        content_with_border.push(bottom);
-
-        content_with_border
+    fn new(
+        transform: (i32, i32),
+        visible_content_size: (u16, u16),
+        content_start: (u16, u16),
+    ) -> Relative {
+        Relative {
+            transform,
+            visible_content_size,
+            content_start,
+        }
     }
 }

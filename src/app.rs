@@ -95,7 +95,6 @@ impl App {
                 &self.right_panel.brush,
                 x,
                 y,
-                t_size,
             )?;
         }
 
@@ -112,7 +111,6 @@ impl App {
                 &self.right_panel.brush,
                 x,
                 y,
-                t_size,
             )?;
         }
 
