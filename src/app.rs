@@ -107,7 +107,7 @@ impl App {
         let t_size = size()?;
 
         if self.right_panel.area.check_inside(x, y, t_size) {
-            self.right_panel.click(&mut self.painter, x, y, t_size)?;
+            self.right_panel.click(&mut self.painter, x, y)?;
         } else if self.canvas.area.check_inside(x, y, t_size) {
             self.canvas.click(
                 &mut self.painter,

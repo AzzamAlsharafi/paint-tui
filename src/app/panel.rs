@@ -11,6 +11,7 @@ pub struct RightPanel {
     tools: Vec<Tool>,
     active_tool: usize, // index of current active tool
     pub brush: StyledContent<char>,
+    relative: Relative, // Fields that depends on terminal window size.
 }
 
 impl RightPanel {
@@ -30,6 +31,7 @@ impl RightPanel {
             ],
             active_tool: 0,
             brush: 'X'.cyan(),
+            relative: Relative::zero(),
         }
     }
 
@@ -37,27 +39,37 @@ impl RightPanel {
         &self.tools[self.active_tool]
     }
 
-    pub fn draw(&self, painter: &mut Painter, t_size: (u16, u16)) -> crossterm::Result<()> {
-        let (x, y) = self.area.start.absolute_position(t_size);
+    pub fn draw(&mut self, painter: &mut Painter, t_size: (u16, u16)) -> crossterm::Result<()> {
+        self.set_relative(t_size);
+
+        self.draw_panel(painter)
+    }
+
+    fn set_relative(&mut self, t_size: (u16, u16)) {
         let (_, height) = self.area.size(t_size);
 
-        for i in 0..self.tools.len() {
-            let y = y + (i * 3) as u16;
+        let visible_buttons = min(height / 3, self.tools.len() as u16);
+        let panel_start = self.area.start.absolute_position(t_size);
 
-            // Check if there's enought space for this button
-            if height < 3 || y > height.abs_diff(3) {
-                break;
-            }
+        self.relative = Relative::new(visible_buttons, panel_start);
+    }
 
-            if self.active_tool == i {
+    fn draw_panel(&self, painter: &mut Painter) -> crossterm::Result<()> {
+        let (start_x, start_y) = self.relative.panel_start;
+
+        for i in 0..self.relative.visible_buttons {
+            let (x, y) = (start_x, start_y + (i * 3));
+            let tool_index = usize::from(i);
+
+            if self.active_tool == tool_index {
                 painter.set_attribute(Attribute::Reverse)?;
             }
 
             painter.draw_box(x, y, 5, 3)?;
 
-            painter.write(x + 1, y + 1, self.tools[i].icon())?;
+            painter.write(x + 1, y + 1, self.tools[tool_index].icon())?;
 
-            if self.active_tool == i {
+            if self.active_tool == tool_index {
                 painter.set_attribute(Attribute::Reset)?;
             }
         }
@@ -65,24 +77,27 @@ impl RightPanel {
         Ok(())
     }
 
-    // cx, cy: click x, click y.
     pub fn click(
         &mut self,
         painter: &mut Painter,
-        _cx: u16,
-        cy: u16,
-        t_size: (u16, u16),
+        _click_x: u16,
+        click_y: u16,
     ) -> crossterm::Result<()> {
-        let (_, y) = self.area.start.absolute_position(t_size);
-        let (_, height) = self.area.size(t_size);
+        let (_, start_y) = self.relative.panel_start;
+        let visible_buttons = self.relative.visible_buttons;
 
-        let visible_buttons = min(height / 3, self.tools.len() as u16);
+        // This should never be true, but just in case.
+        if click_y < start_y {
+            return Ok(());
+        }
 
-        if (visible_buttons * 3) + y > cy {
-            self.active_tool = usize::from((cy - y) / 3);
+        let index = (click_y - start_y) / 3;
 
-            self.draw(painter, t_size)?;
-            painter.flush()?;
+        if index < visible_buttons {
+           self.active_tool = usize::from(index);
+           
+           self.draw_panel(painter)?;
+           painter.flush()?;
         }
 
         Ok(())
@@ -114,5 +129,21 @@ impl Tool {
             Tool::ColorPicker => return symbols::COLOR_PICKET,
             Tool::Text => return symbols::TEXT,
         }
+    }
+}
+
+// Fields that depends on terminal window size.
+struct Relative {
+    visible_buttons: u16,
+    panel_start: (u16, u16)
+}
+
+impl Relative {
+    fn zero() -> Relative {
+        Relative { visible_buttons: 0, panel_start: (0, 0) }
+    }
+
+    fn new(visible_buttons: u16, panel_start: (u16, u16)) -> Relative {
+        Relative { visible_buttons, panel_start }
     }
 }
