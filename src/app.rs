@@ -5,7 +5,7 @@ mod panel;
 use std::io;
 
 use crossterm::{
-    event::{read, Event, KeyCode, MouseButton, MouseEventKind},
+    event::{read, Event, KeyCode, MouseEvent},
     terminal::{disable_raw_mode, enable_raw_mode, size},
 };
 
@@ -60,15 +60,9 @@ impl App {
                     self.painter.clear()?;
                     self.draw_all((width, height))?;
                 }
-                Event::Mouse(event) => match event.kind {
-                    MouseEventKind::Down(MouseButton::Left) => {
-                        self.handle_left_click(event.column, event.row)?
-                    }
-                    MouseEventKind::Drag(MouseButton::Left) => {
-                        self.handle_drag(event.column, event.row)?
-                    }
-                    _ => {}
-                },
+                Event::Mouse(event) => {
+                    self.handle_mouse_event(event)?;
+                }
                 _ => {}
             }
         }
@@ -103,34 +97,19 @@ impl App {
         Ok(())
     }
 
-    fn handle_left_click(&mut self, x: u16, y: u16) -> crossterm::Result<()> {
+    fn handle_mouse_event(&mut self, event: MouseEvent) -> crossterm::Result<()> {
         let t_size = size()?;
+
+        let (x, y) = (event.column, event.row);
 
         if self.right_panel.area.check_inside(x, y, t_size) {
-            self.right_panel.click(&mut self.painter, x, y)?;
+            self.right_panel.mouse_event(event, &mut self.painter)?;
         } else if self.canvas.area.check_inside(x, y, t_size) {
-            self.canvas.click(
+            self.canvas.mouse_event(
+                event,
                 &mut self.painter,
                 self.right_panel.get_tool(),
                 &self.right_panel.brush,
-                x,
-                y,
-            )?;
-        }
-
-        Ok(())
-    }
-
-    fn handle_drag(&mut self, x: u16, y: u16) -> crossterm::Result<()> {
-        let t_size = size()?;
-
-        if self.canvas.area.check_inside(x, y, t_size) {
-            self.canvas.drag(
-                &mut self.painter,
-                self.right_panel.get_tool(),
-                &self.right_panel.brush,
-                x,
-                y,
             )?;
         }
 

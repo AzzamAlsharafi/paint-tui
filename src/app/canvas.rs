@@ -1,6 +1,9 @@
 use std::{cmp::min, vec};
 
-use crossterm::style::{ContentStyle, StyledContent};
+use crossterm::{
+    event::{MouseButton, MouseEvent, MouseEventKind},
+    style::{ContentStyle, StyledContent},
+};
 
 use crate::{painter::Painter, utils::AddSubOrZero};
 
@@ -138,7 +141,29 @@ impl Canvas {
         )
     }
 
-    pub fn click(
+    pub fn mouse_event(
+        &mut self,
+        event: MouseEvent,
+        painter: &mut Painter,
+        tool: &Tool,
+        brush: &StyledContent<char>,
+    ) -> crossterm::Result<()> {
+        let (click_x, click_y) = (event.column, event.row);
+
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.click(painter, tool, brush, click_x, click_y)?;
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                self.drag(painter, tool, brush, click_x, click_y)?;
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn click(
         &mut self,
         painter: &mut Painter,
         tool: &Tool,
@@ -174,7 +199,7 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn drag(
+    fn drag(
         &mut self,
         painter: &mut Painter,
         tool: &Tool,

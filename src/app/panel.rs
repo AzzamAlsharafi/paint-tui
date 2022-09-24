@@ -1,8 +1,11 @@
 use std::cmp::min;
 
-use crossterm::style::{Attribute, StyledContent, Stylize};
+use crossterm::{
+    event::{MouseButton, MouseEvent, MouseEventKind},
+    style::{Attribute, StyledContent, Stylize},
+};
 
-use crate::{constant::symbols, painter::Painter};
+use crate::{constant::symbols, painter::Painter, utils::DiffOrZero};
 
 use super::area::Area;
 
@@ -51,15 +54,23 @@ impl RightPanel {
         let visible_buttons = min(height / 3, self.tools.len() as u16);
         let panel_start = self.area.start.absolute_position(t_size);
 
-        self.relative = Relative::new(visible_buttons, panel_start);
+        // Set scroll to the minimum between current scroll,
+        // or max allowed scroll (difference between total buttons and visible buttons).
+        let scroll = min(
+            self.relative.scroll,
+            (self.tools.len() as u16) - visible_buttons,
+        );
+
+        self.relative = Relative::new(visible_buttons, panel_start, scroll);
     }
 
     fn draw_panel(&self, painter: &mut Painter) -> crossterm::Result<()> {
         let (start_x, start_y) = self.relative.panel_start;
+        let scroll = self.relative.scroll;
 
         for i in 0..self.relative.visible_buttons {
             let (x, y) = (start_x, start_y + (i * 3));
-            let tool_index = usize::from(i);
+            let tool_index = usize::from(i + scroll);
 
             if self.active_tool == tool_index {
                 painter.set_attribute(Attribute::Reverse)?;
@@ -77,7 +88,30 @@ impl RightPanel {
         Ok(())
     }
 
-    pub fn click(
+    pub fn mouse_event(
+        &mut self,
+        event: MouseEvent,
+        painter: &mut Painter,
+    ) -> crossterm::Result<()> {
+        let (click_x, click_y) = (event.column, event.row);
+
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.click(painter, click_x, click_y)?;
+            }
+            MouseEventKind::ScrollDown => {
+                self.scroll(painter, false)?;
+            }
+            MouseEventKind::ScrollUp => {
+                self.scroll(painter, true)?;
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn click(
         &mut self,
         painter: &mut Painter,
         _click_x: u16,
@@ -85,20 +119,43 @@ impl RightPanel {
     ) -> crossterm::Result<()> {
         let (_, start_y) = self.relative.panel_start;
         let visible_buttons = self.relative.visible_buttons;
+        let scroll = self.relative.scroll;
 
         // This should never be true, but just in case.
         if click_y < start_y {
             return Ok(());
         }
 
-        let index = (click_y - start_y) / 3;
+        let clicked_button = (click_y - start_y) / 3;
 
-        if index < visible_buttons {
-           self.active_tool = usize::from(index);
-           
-           self.draw_panel(painter)?;
-           painter.flush()?;
+        if clicked_button < visible_buttons {
+            self.active_tool = usize::from(clicked_button + scroll);
+
+            self.draw_panel(painter)?;
+            painter.flush()?;
         }
+
+        Ok(())
+    }
+
+    fn scroll(&mut self, painter: &mut Painter, up: bool) -> crossterm::Result<()> {
+        let visible_buttons = self.relative.visible_buttons;
+        let total_buttons = self.tools.len() as u16;
+        let scroll = self.relative.scroll;
+
+        self.relative.scroll = if up {
+            // If scrolling up, reduce scroll until its zero.
+            scroll.diff_or_zero(&1)
+        } else if visible_buttons + scroll < total_buttons {
+            // If scrolling down, check if there's room to scroll, then scroll if there is.
+            scroll + 1
+        } else {
+            // otherwise, don't scroll.
+            scroll
+        };
+
+        self.draw_panel(painter)?;
+        painter.flush()?;
 
         Ok(())
     }
@@ -135,15 +192,24 @@ impl Tool {
 // Fields that depends on terminal window size.
 struct Relative {
     visible_buttons: u16,
-    panel_start: (u16, u16)
+    panel_start: (u16, u16),
+    scroll: u16,
 }
 
 impl Relative {
     fn zero() -> Relative {
-        Relative { visible_buttons: 0, panel_start: (0, 0) }
+        Relative {
+            visible_buttons: 0,
+            panel_start: (0, 0),
+            scroll: 0,
+        }
     }
 
-    fn new(visible_buttons: u16, panel_start: (u16, u16)) -> Relative {
-        Relative { visible_buttons, panel_start }
+    fn new(visible_buttons: u16, panel_start: (u16, u16), scroll: u16) -> Relative {
+        Relative {
+            visible_buttons,
+            panel_start,
+            scroll,
+        }
     }
 }
