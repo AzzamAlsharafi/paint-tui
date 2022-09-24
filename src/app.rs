@@ -33,7 +33,7 @@ impl App {
             )),
             canvas: Canvas::new(
                 Area::new(
-                    Point::new(6, 0, Corner::TopLeft),
+                    Point::new(6, 1, Corner::TopLeft),
                     Point::new(0, 0, Corner::_BottomRight),
                 ),
                 50,
@@ -78,7 +78,27 @@ impl App {
         self.right_panel.draw(&mut self.painter, t_size)?;
         self.canvas.draw(&mut self.painter, t_size)?;
 
+        self.draw_borders(t_size)?;
+
         self.painter.flush()?;
+
+        Ok(())
+    }
+
+    // Draw major borders.
+    fn draw_borders(&mut self, t_size: (u16, u16)) -> crossterm::Result<()> {
+        // Canvas border
+        let (canvas_x, canvas_y) = self.canvas.area.start.absolute_position(t_size);
+        let (canvas_width, canvas_height) = self.canvas.area.size(t_size);
+
+        if canvas_x > 0 && canvas_y > 0 {
+            self.painter.draw_box(
+                canvas_x - 1,
+                canvas_y - 1,
+                canvas_width + 2,
+                canvas_height + 2,
+            )?;
+        }
 
         Ok(())
     }
