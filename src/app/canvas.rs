@@ -399,7 +399,7 @@ impl Canvas {
 
         let current = self.content[content_y][content_x];
 
-        if &current != selected {
+        if &current != selected || &current == brush {
             return Ok(());
         }
 
