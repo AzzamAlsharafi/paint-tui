@@ -1,7 +1,7 @@
-mod constant;
-mod utils;
 mod app;
+mod constant;
 mod painter;
+mod utils;
 
 use std::io;
 

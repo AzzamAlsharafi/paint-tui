@@ -9,9 +9,9 @@ pub trait AddSubOrZero {
 impl DiffOrZero for u16 {
     fn diff_or_zero(&self, b: &u16) -> u16 {
         if self > b {
-            return self - b;
+            self - b
         } else {
-            return 0;
+            0
         }
     }
 }
@@ -19,9 +19,9 @@ impl DiffOrZero for u16 {
 impl DiffOrZero for usize {
     fn diff_or_zero(&self, b: &usize) -> usize {
         if self > b {
-            return self - b;
+            self - b
         } else {
-            return 0;
+            0
         }
     }
 }

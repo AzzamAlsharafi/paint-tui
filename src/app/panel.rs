@@ -176,15 +176,15 @@ pub enum Tool {
 impl Tool {
     fn icon(&self) -> &str {
         match self {
-            Tool::Select => return symbols::SELECT,
-            Tool::Move => return symbols::MOVE,
-            Tool::Rectangle => return symbols::RECTANGLE,
-            Tool::Circle => return symbols::CIRCLE,
-            Tool::Brush => return symbols::BRUSH,
-            Tool::Erase => return symbols::ERASE,
-            Tool::Bucket => return symbols::BUCKET,
-            Tool::ColorPicker => return symbols::COLOR_PICKET,
-            Tool::Text => return symbols::TEXT,
+            Tool::Select => symbols::SELECT,
+            Tool::Move => symbols::MOVE,
+            Tool::Rectangle => symbols::RECTANGLE,
+            Tool::Circle => symbols::CIRCLE,
+            Tool::Brush => symbols::BRUSH,
+            Tool::Erase => symbols::ERASE,
+            Tool::Bucket => symbols::BUCKET,
+            Tool::ColorPicker => symbols::COLOR_PICKET,
+            Tool::Text => symbols::TEXT,
         }
     }
 }

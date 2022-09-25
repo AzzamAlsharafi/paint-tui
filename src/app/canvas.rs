@@ -244,7 +244,12 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn release(&mut self, painter: &mut Painter, tool: &Tool, brush: &StyledContent<char>) -> crossterm::Result<()> {
+    pub fn release(
+        &mut self,
+        painter: &mut Painter,
+        tool: &Tool,
+        brush: &StyledContent<char>,
+    ) -> crossterm::Result<()> {
         match tool {
             Tool::Select => {
                 self.select_release(painter)?;
@@ -308,7 +313,11 @@ impl Canvas {
         Ok(())
     }
 
-    fn rectangle_release(&mut self, painter: &mut Painter, brush: &StyledContent<char>) -> crossterm::Result<()> {
+    fn rectangle_release(
+        &mut self,
+        painter: &mut Painter,
+        brush: &StyledContent<char>,
+    ) -> crossterm::Result<()> {
         if let Some(active) = &self.active {
             let (start_x, start_y) = active.start_position;
             let (last_x, last_y) = active.last_position;
@@ -326,9 +335,9 @@ impl Canvas {
                         self.content[iy][ix] = *brush;
                     }
                 }
-    
+
                 self.draw_content(painter)?;
-                return painter.flush();   
+                return painter.flush();
             }
         }
 

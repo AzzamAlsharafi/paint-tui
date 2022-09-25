@@ -64,15 +64,13 @@ impl Point {
         let t_height = t_height - 1;
 
         match self.corner {
-            Corner::TopLeft => return (self.x, self.y),
-            Corner::_TopRight => return (t_width.diff_or_zero(&self.x), self.y),
-            Corner::BottomLeft => return (self.x, t_height.diff_or_zero(&self.y)),
-            Corner::_BottomRight => {
-                return (
-                    t_width.diff_or_zero(&self.x),
-                    t_height.diff_or_zero(&self.y),
-                )
-            }
+            Corner::TopLeft => (self.x, self.y),
+            Corner::_TopRight => (t_width.diff_or_zero(&self.x), self.y),
+            Corner::BottomLeft => (self.x, t_height.diff_or_zero(&self.y)),
+            Corner::_BottomRight => (
+                t_width.diff_or_zero(&self.x),
+                t_height.diff_or_zero(&self.y),
+            ),
         }
     }
 }
