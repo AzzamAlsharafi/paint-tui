@@ -4,8 +4,12 @@ pub mod symbols {
     pub const TOP_LEFT: char = '┌';
     pub const BOTTOM_RIGHT: char = '┘';
     pub const BOTTOM_LEFT: char = '└';
-    pub const VERTICAL: char = '│';
-    pub const HORIZONTAL: char = '─';
+    pub const VERTICAL: &str = "│";
+    pub const HORIZONTAL: &str = "─";
+
+    pub const FILLED_SQUARE: &str = "■";
+    pub const DASHED_HORIZONTAL: &str = "╌";
+    pub const DASHED_VERTICAL: &str = "╎";
 
     // Icons (Temp)
     pub const SELECT: &str = " S ";

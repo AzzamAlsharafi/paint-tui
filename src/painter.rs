@@ -96,11 +96,36 @@ impl Painter {
     }
 
     pub fn draw_box(&mut self, x: u16, y: u16, width: u16, height: u16) -> crossterm::Result<()> {
+        self.draw_box_with_option(x, y, width, height, false)
+    }
+
+    pub fn draw_dashed_box(&mut self, x: u16, y: u16, width: u16, height: u16) -> crossterm::Result<()> {
+        self.draw_box_with_option(x, y, width, height, true)
+    }
+
+    fn draw_box_with_option(&mut self, x: u16, y: u16, width: u16, height: u16, dashed: bool) -> crossterm::Result<()> {
+        let (horizontal, vertical) = if dashed {
+            (symbols::DASHED_HORIZONTAL, symbols::DASHED_VERTICAL)
+        } else {
+            (symbols::HORIZONTAL, symbols::VERTICAL)
+        };
+        
+        if width == 0 || height == 0 {
+            return Ok(());
+        }
+
+        if width == 1 || height == 1 {
+            for i in 0..height {
+                self.write(x, y + i, symbols::FILLED_SQUARE.repeat(usize::from(width)))?;
+            }
+            return Ok(());
+        }
+
         queue!(
             self.stdout,
             cursor::MoveTo(x, y),
             Print(symbols::TOP_LEFT),
-            Print(symbols::HORIZONTAL.to_string().repeat(usize::from(width - 2))),
+            Print(horizontal.repeat(usize::from(width - 2))),
             Print(symbols::TOP_RIGHT)
         )?;
 
@@ -108,9 +133,9 @@ impl Painter {
             queue!(
                 self.stdout,
                 cursor::MoveTo(x, y + i),
-                Print(symbols::VERTICAL),
+                Print(vertical),
                 cursor::MoveToColumn(x + (width - 1)),
-                Print(symbols::VERTICAL)
+                Print(vertical)
             )?;
         }
 
@@ -118,7 +143,7 @@ impl Painter {
             self.stdout,
             cursor::MoveTo(x, y + (height - 1)),
             Print(symbols::BOTTOM_LEFT),
-            Print(symbols::HORIZONTAL.to_string().repeat(usize::from(width - 2))),
+            Print(horizontal.repeat(usize::from(width - 2))),
             Print(symbols::BOTTOM_RIGHT)
         )?;
 

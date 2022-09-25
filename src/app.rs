@@ -5,7 +5,7 @@ mod panel;
 use std::io;
 
 use crossterm::{
-    event::{read, Event, KeyCode, MouseEvent},
+    event::{read, Event, KeyCode, MouseEvent, MouseEventKind, MouseButton},
     terminal::{disable_raw_mode, enable_raw_mode, size},
 };
 
@@ -101,6 +101,12 @@ impl App {
         let t_size = size()?;
 
         let (x, y) = (event.column, event.row);
+
+        // Canvas is the only component that handles release events,
+        // and it needs to handle them regardless of the position.
+        if let MouseEventKind::Up(MouseButton::Left) = event.kind {
+            return self.canvas.release(&mut self.painter, self.right_panel.get_tool(), &self.right_panel.brush);
+        }
 
         if self.right_panel.area.check_inside(x, y, t_size) {
             self.right_panel.mouse_event(event, &mut self.painter)?;

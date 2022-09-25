@@ -12,6 +12,8 @@ use super::{area::Area, panel::Tool};
 pub struct Canvas {
     pub area: Area,
     content: Vec<Vec<StyledContent<char>>>,
+    // Use with tools that operate on multiple mouse events.
+    active: Option<Active>,
     // Fields that depends on current terminal window size.
     relative: Relative,
 }
@@ -25,6 +27,7 @@ impl Canvas {
         Canvas {
             area,
             content,
+            active: None,
             relative: Relative::zero(),
         }
     }
@@ -173,9 +176,13 @@ impl Canvas {
     ) -> crossterm::Result<()> {
         if let Some((content_x, content_y)) = self.apply_transform(click_x, click_y) {
             match tool {
-                Tool::Select => {}
+                Tool::Select => {
+                    self.select_click(painter, click_x, click_y)?;
+                }
                 Tool::Move => {}
-                Tool::Rectangle => {}
+                Tool::Rectangle => {
+                    self.select_click(painter, click_x, click_y)?;
+                }
                 Tool::Circle => {}
                 Tool::Brush => {
                     self.brush(painter, click_x, click_y, content_x, content_y, brush)?
@@ -209,9 +216,13 @@ impl Canvas {
     ) -> crossterm::Result<()> {
         if let Some((content_x, content_y)) = self.apply_transform(click_x, click_y) {
             match tool {
-                Tool::Select => {}
+                Tool::Select => {
+                    self.select_drag(painter, click_x, click_y)?;
+                }
                 Tool::Move => {}
-                Tool::Rectangle => {}
+                Tool::Rectangle => {
+                    self.select_drag(painter, click_x, click_y)?;
+                }
                 Tool::Circle => {}
                 Tool::Brush => {
                     self.brush(painter, click_x, click_y, content_x, content_y, brush)?
@@ -227,6 +238,97 @@ impl Canvas {
                 Tool::Bucket => {}
                 Tool::ColorPicker => {}
                 Tool::Text => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn release(&mut self, painter: &mut Painter, tool: &Tool, brush: &StyledContent<char>) -> crossterm::Result<()> {
+        match tool {
+            Tool::Select => {
+                self.select_release(painter)?;
+            }
+            Tool::Rectangle => {
+                self.rectangle_release(painter, brush)?;
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn select_click(
+        &mut self,
+        painter: &mut Painter,
+        click_x: u16,
+        click_y: u16,
+    ) -> crossterm::Result<()> {
+        self.active = Some(Active::new(click_x, click_y));
+
+        self.draw_select(painter)
+    }
+
+    fn select_drag(
+        &mut self,
+        painter: &mut Painter,
+        click_x: u16,
+        click_y: u16,
+    ) -> crossterm::Result<()> {
+        if let Some(active) = &mut self.active {
+            active.update(click_x, click_y);
+
+            return self.draw_select(painter);
+        }
+
+        Ok(())
+    }
+
+    fn select_release(&mut self, painter: &mut Painter) -> crossterm::Result<()> {
+        self.active = None;
+        self.draw_content(painter)?;
+        painter.flush()
+    }
+
+    fn draw_select(&mut self, painter: &mut Painter) -> crossterm::Result<()> {
+        if let Some(active) = &self.active {
+            let (start_x, start_y) = active.start_position;
+            let (last_x, last_y) = active.last_position;
+
+            let x = min(start_x, last_x);
+            let y = min(start_y, last_y);
+            let width = start_x.abs_diff(last_x) + 1;
+            let height = start_y.abs_diff(last_y) + 1;
+
+            self.draw_content(painter)?;
+            painter.draw_dashed_box(x, y, width, height)?;
+            return painter.flush();
+        }
+
+        Ok(())
+    }
+
+    fn rectangle_release(&mut self, painter: &mut Painter, brush: &StyledContent<char>) -> crossterm::Result<()> {
+        if let Some(active) = &self.active {
+            let (start_x, start_y) = active.start_position;
+            let (last_x, last_y) = active.last_position;
+
+            let x = min(start_x, last_x);
+            let y = min(start_y, last_y);
+            let width = start_x.abs_diff(last_x) + 1;
+            let height = start_y.abs_diff(last_y) + 1;
+
+            self.active = None;
+
+            if let Some((content_x, content_y)) = self.apply_transform(x, y) {
+                for iy in content_y..(content_y + usize::from(height)) {
+                    for ix in content_x..(content_x + usize::from(width)) {
+                        self.content[iy][ix] = *brush;
+                    }
+                }
+    
+                self.draw_content(painter)?;
+                return painter.flush();   
             }
         }
 
@@ -310,6 +412,24 @@ impl Canvas {
         }
 
         Ok(())
+    }
+}
+
+struct Active {
+    start_position: (u16, u16),
+    last_position: (u16, u16),
+}
+
+impl Active {
+    fn new(start_x: u16, start_y: u16) -> Active {
+        Active {
+            start_position: (start_x, start_y),
+            last_position: (start_x, start_y),
+        }
+    }
+
+    fn update(&mut self, last_x: u16, last_y: u16) {
+        self.last_position = (last_x, last_y)
     }
 }
 
